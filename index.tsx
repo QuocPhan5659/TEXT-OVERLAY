@@ -2,13 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 
 // --- Shim for process.env to support runtime API_KEY injection ---
 function getRuntimeApiKey(): string {
-    // Priority: 
-    // 1. window.process.env.API_KEY (Runtime injected)
-    // 2. window.API_KEY (Alternative runtime)
-    // 3. process.env.GEMINI_API_KEY (Build-time fallback)
     return (window as any).process?.env?.API_KEY || 
            (window as any).API_KEY || 
            (process.env as any).GEMINI_API_KEY || 
+           localStorage.getItem('GEMINI_API_KEY') ||
            "";
 }
 
@@ -152,6 +149,7 @@ const btnAddSlot = getEl<HTMLButtonElement>('btn-add-slot');
 const btnClearMetadata = getEl<HTMLButtonElement>('btn-clear-metadata');
 const btnDownloadAll = getEl<HTMLButtonElement>('btn-download-all');
 const langToggleBtn = getEl<HTMLButtonElement>('lang-toggle-btn');
+const resetKeyBtn = getEl<HTMLButtonElement>('reset-key-btn');
 const langEn = getEl<HTMLSpanElement>('lang-en');
 const langVi = getEl<HTMLSpanElement>('lang-vi');
 const fontSelector = getEl<HTMLSelectElement>('font-selector');
@@ -327,7 +325,19 @@ function updateModalTransform() {
 }
 
 async function getApiKey(): Promise<string | undefined> {
-    return getRuntimeApiKey();
+    let key = getRuntimeApiKey();
+    
+    if (!key) {
+        const userKey = prompt("VUI LÒNG NHẬP GEMINI API KEY ĐỂ TIẾP TỤC (PLEASE ENTER GEMINI API KEY TO CONTINUE):");
+        if (userKey) {
+            localStorage.setItem('GEMINI_API_KEY', userKey);
+            return userKey;
+        } else {
+            showStatus("API KEY IS REQUIRED TO RUN AI TASKS.", true);
+            return undefined;
+        }
+    }
+    return key;
 }
 
 // --- PNG Logic ---
@@ -1224,6 +1234,17 @@ document.addEventListener('DOMContentLoaded', () => {
         langToggleBtn.addEventListener('click', () => {
             currentLang = currentLang === 'en' ? 'vi' : 'en';
             updateUI();
+        });
+    }
+
+    // Reset API Key Listener
+    if (resetKeyBtn) {
+        resetKeyBtn.addEventListener('click', () => {
+            localStorage.removeItem('GEMINI_API_KEY');
+            showStatus("API KEY CLEARED FROM STORAGE.");
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
         });
     }
 
