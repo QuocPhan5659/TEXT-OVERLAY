@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text Overlay</title>
+    <title>IMGEN PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=Dancing+Script:wght@400;700&family=Courier+Prime:wght@400;700&family=Merriweather:wght@300;700&display=swap" rel="stylesheet">
     <script type="importmap">
@@ -21,28 +21,38 @@
   }
 }
 </script>
-    <script type="module" src="./index.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; text-transform: uppercase; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #18181a; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #444; }
+        
+        /* Ensure inputs and textareas also show uppercase if desired, 
+           but usually user might want to see actual case for data entry.
+           However, "all text" means all text. */
+        input, textarea, select { text-transform: uppercase; }
     </style>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-[#121212] text-gray-200 min-h-screen flex flex-col">
+<body class="bg-[#050b18] text-gray-200 min-h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="border-b border-gray-800 bg-[#1E1F20] px-6 py-4 flex justify-between items-center sticky top-0 z-40 shadow-lg">
-        <div>
-            <h1 class="text-xl font-bold bg-gradient-to-r from-orange-400 to-red-300 bg-clip-text text-transparent" id="app-title" data-i18n="appTitle">Text Overlay</h1>
-            <p class="text-xs text-gray-400 mt-1" id="app-subtitle" data-i18n="appSubtitle">Embed text and metadata into images</p>
+    <header class="border-b border-gray-800 bg-[#050b18] px-6 py-4 flex justify-between items-center sticky top-0 z-40 shadow-lg">
+        <div class="flex items-center gap-8">
+            <div>
+                <h1 class="text-xl font-bold bg-gradient-to-r from-yellow-600 to-blue-500 bg-clip-text text-transparent" id="app-title" data-i18n="appTitle">IMGEN PRO</h1>
+                <p class="text-xs text-gray-400 mt-1" id="app-subtitle" data-i18n="appSubtitle">Advanced Image Processing</p>
+            </div>
+            <nav class="hidden md:flex items-center gap-2 bg-[#0a1224] p-1 rounded-sm border border-gray-800">
+                <button id="tab-text-overlay" class="px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer bg-blue-900/40 text-blue-400 border border-blue-800/50" data-i18n="tabTextOverlay">Text Overlay</button>
+                <button id="tab-remove-logo" class="px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-gray-800" data-i18n="tabRemoveLogo">Remove Logo</button>
+            </nav>
         </div>
         <div class="flex items-center gap-4">
-            <button id="lang-toggle-btn" class="flex items-center gap-2 text-xs font-medium bg-gray-800 px-3 py-1.5 rounded-full border border-gray-700 hover:border-gray-500 transition-colors cursor-pointer">
+            <button id="lang-toggle-btn" class="flex items-center gap-2 text-xs font-medium bg-[#0a1224] px-3 py-1.5 rounded-full border border-gray-800 hover:border-gray-600 transition-colors cursor-pointer">
                 <span id="lang-en" class="text-blue-400 font-bold">EN</span>
                 <span class="text-gray-600">|</span>
                 <span id="lang-vi" class="text-gray-400">VI</span>
@@ -51,94 +61,114 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 flex overflow-hidden">
+    <main class="flex-1 flex overflow-hidden bg-[#050b18]">
         
         <!-- Left Sidebar -->
-        <aside class="w-[380px] flex-shrink-0 border-r border-gray-800 bg-[#18181a] flex flex-col overflow-y-auto custom-scrollbar">
+        <aside class="w-[380px] flex-shrink-0 border-r border-gray-800 bg-[#020617] flex flex-col overflow-y-auto custom-scrollbar">
             <div class="p-6 space-y-6">
                 
                 <!-- Common Upload Section -->
                 <div id="upload-section-analysis">
                     <div class="flex justify-between items-center mb-2">
-                        <label class="text-xs font-bold text-orange-400 uppercase tracking-wider" id="lbl-upload" data-i18n="lblUpload">Source Images</label>
+                        <label class="text-xs font-bold text-yellow-700 uppercase tracking-wider" id="lbl-upload" data-i18n="lblUpload">Source Images</label>
                     </div>
-                    <div id="drop-zone" class="min-h-[160px] flex flex-col justify-center border-2 border-dashed border-gray-700 rounded-xl p-4 text-center hover:border-gray-500 hover:bg-gray-800/50 transition-all cursor-pointer group relative">
+                    <div id="drop-zone" class="min-h-[120px] flex flex-col justify-center border-2 border-dashed border-yellow-800/50 rounded-sm p-4 text-center hover:border-yellow-700 hover:bg-yellow-900/10 transition-all cursor-pointer group relative bg-yellow-900/5">
                         <input type="file" id="file-input" multiple accept="image/*" class="hidden">
                         <div id="empty-state">
-                            <div class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-gray-700 transition-colors shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            <div class="w-12 h-12 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-yellow-900/40 transition-colors shadow-lg border border-yellow-800/30">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
-                            <p class="text-xs font-medium text-gray-300 group-hover:text-white transition-colors" id="lbl-drag" data-i18n="lblDrag">Drag & Drop for Auto-Fill</p>
+                            <p class="text-xs font-bold text-yellow-700 group-hover:text-yellow-600 transition-colors uppercase tracking-widest" id="lbl-drag" data-i18n="btnRunAll">Run Remove All</p>
                         </div>
                         <div id="preview-container" class="hidden flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x h-full items-center"></div>
                     </div>
                 </div>
 
-                 <!-- Panel: Metadata Writer -->
+                 <!-- Panel: Metadata Writer (Text Overlay) -->
                  <div id="panel-metadata" class="space-y-3">
                      <!-- Font Selection with Styles -->
-                     <div class="bg-[#18181a] border border-gray-700 rounded-xl p-3 flex flex-col gap-1">
-                        <label class="text-[10px] font-bold text-blue-400 uppercase tracking-wider block" data-i18n="lblFontStyle">Global Font Style</label>
-                        <select id="font-selector" class="w-full bg-gray-900 border-none rounded text-lg text-white focus:ring-1 focus:ring-blue-500 h-10 p-1">
-                            <option value="Inter" style="font-family: 'Inter', sans-serif;">Modern Sans (Inter)</option>
-                            <option value="Playfair Display" style="font-family: 'Playfair Display', serif;">Elegant Serif (Playfair)</option>
-                            <option value="Merriweather" style="font-family: 'Merriweather', serif;">Readable Serif (Merriweather)</option>
-                            <option value="Dancing Script" style="font-family: 'Dancing Script', cursive;">Handwritten (Dancing Script)</option>
-                            <option value="Courier Prime" style="font-family: 'Courier Prime', monospace;">Typewriter (Courier)</option>
+                     <div class="bg-[#0a1224] border border-gray-800 rounded-sm p-3 flex flex-col gap-1">
+                        <label class="text-[10px] font-bold text-blue-800 uppercase tracking-wider block" data-i18n="lblFontStyle">Global Font Style</label>
+                        <select id="font-selector" class="w-full bg-[#050b18] border-none rounded-sm text-lg text-white focus:ring-1 focus:ring-blue-900 h-10 p-1">
+                            <option value="Inter" style="font-family: 'Inter', sans-serif;">MODERN SANS (INTER)</option>
+                            <option value="Playfair Display" style="font-family: 'Playfair Display', serif;">ELEGANT SERIF (PLAYFAIR)</option>
+                            <option value="Merriweather" style="font-family: 'Merriweather', serif;">READABLE SERIF (MERRIWEATHER)</option>
+                            <option value="Dancing Script" style="font-family: 'Dancing Script', cursive;">HANDWRITTEN (DANCING SCRIPT)</option>
+                            <option value="Courier Prime" style="font-family: 'Courier Prime', monospace;">TYPEWRITER (COURIER)</option>
                         </select>
                      </div>
 
                      <!-- Author Input (Enlarged Textarea) -->
-                     <div class="bg-[#18181a] border border-gray-700 rounded-xl p-3 flex items-start gap-3">
-                        <div id="btn-import-author" class="w-8 h-8 rounded-full bg-orange-900/30 flex items-center justify-center text-orange-500 mt-1 shrink-0 cursor-pointer hover:bg-orange-900/50 hover:scale-105 transition-all" title="Click to upload .txt file">
+                     <div class="bg-[#0a1224] border border-gray-800 rounded-sm p-3 flex items-start gap-3">
+                        <div id="btn-import-author" class="w-8 h-8 rounded-full bg-yellow-900/20 flex items-center justify-center text-yellow-700 mt-1 shrink-0 cursor-pointer hover:bg-yellow-900/40 hover:scale-105 transition-all" title="Click to upload .txt file">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </div>
                         <div class="flex-1">
-                            <label class="text-[10px] font-bold text-orange-400 uppercase tracking-wider block mb-1" data-i18n="lblAuthor">Global Author Signature</label>
-                            <textarea id="author-input" class="w-full bg-gray-900 border-none rounded text-sm text-white focus:ring-0 placeholder-gray-600 h-24 p-2 resize-none transition-colors" placeholder="Enter author name (or drag .txt file here)..."></textarea>
+                            <label class="text-[10px] font-bold text-yellow-700 uppercase tracking-wider block mb-1" data-i18n="lblAuthor">Global Author Signature</label>
+                            <textarea id="author-input" class="w-full bg-[#050b18] border-none rounded-sm text-sm text-white focus:ring-0 placeholder-gray-600 h-24 p-2 resize-none transition-colors" placeholder="ENTER AUTHOR NAME (OR DRAG .TXT FILE HERE)..."></textarea>
                             <input type="file" id="author-file-input" accept=".txt,text/plain" class="hidden">
                         </div>
                      </div>
 
                      <!-- Logo Input -->
-                     <div class="bg-[#18181a] border border-gray-700 rounded-xl p-3 flex items-center gap-3">
-                        <div id="btn-import-logo" class="w-8 h-8 rounded-full bg-blue-900/30 flex items-center justify-center text-blue-500 mt-0 shrink-0 cursor-pointer hover:bg-blue-900/50 hover:scale-105 transition-all" title="Click to upload logo">
+                     <div class="bg-[#0a1224] border border-gray-800 rounded-sm p-3 flex items-center gap-3">
+                        <div id="btn-import-logo" class="w-8 h-8 rounded-full bg-blue-900/20 flex items-center justify-center text-blue-800 mt-0 shrink-0 cursor-pointer hover:bg-blue-900/40 hover:scale-105 transition-all" title="Click to upload logo">
                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                         </div>
                         <div class="flex-1 overflow-hidden">
-                             <label class="text-[10px] font-bold text-blue-400 uppercase tracking-wider block mb-1" data-i18n="lblLogo">Global Logo (Center)</label>
-                             <input type="file" id="logo-input" accept="image/*" class="w-full text-[10px] text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-gray-800 file:text-blue-400 hover:file:bg-gray-700 cursor-pointer"/>
+                             <label class="text-[10px] font-bold text-blue-800 uppercase tracking-wider block mb-1" data-i18n="lblLogo">Global Logo (Center)</label>
+                             <input type="file" id="logo-input" accept="image/*" class="w-full text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-[#050b18] file:text-blue-800 hover:file:bg-blue-900/20 cursor-pointer"/>
                         </div>
                      </div>
+                 </div>
 
-                     <button id="btn-add-slot" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 px-4 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-2">
+                 <!-- Panel: Remove Logo -->
+                 <div id="panel-remove-logo" class="hidden space-y-4">
+                    <div class="bg-blue-900/10 border border-blue-900/30 rounded-sm p-4">
+                        <p class="text-xs text-blue-400 leading-relaxed" data-i18n="removeLogoDesc">
+                            Automatically detect and remove Gemini logos or watermarks from your images using AI.
+                        </p>
+                        <div class="mt-3 pt-3 border-t border-blue-900/20 hidden">
+                            <p class="text-[10px] text-blue-300/70 mb-2 italic">
+                                * 4K removal requires a Paid Google Cloud API Key.
+                            </p>
+                            <button id="btn-select-key" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-2 rounded-sm transition-colors uppercase">
+                                Select Paid API Key
+                            </button>
+                        </div>
+                    </div>
+                 </div>
+
+                 <!-- Global Buttons -->
+                 <div class="space-y-3 pt-2">
+                    <button id="btn-add-slot" class="w-full bg-yellow-800 hover:bg-yellow-700 text-white font-bold py-2.5 px-4 rounded-sm transition-all shadow-lg hover:shadow-yellow-900/20 active:scale-95 flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                         <span id="btn-add-slot-text" data-i18n="btnAddSlot">Add New Slot</span>
                     </button>
                     
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="btn-clear-metadata" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-xs">
+                        <button id="btn-clear-metadata" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-sm transition-colors flex items-center justify-center gap-2 text-xs border border-gray-700">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                             <span id="btn-clear-metadata-text" data-i18n="btnClearMetadata">Reset</span>
                         </button>
-                        <button id="btn-download-all" class="w-full bg-green-700 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-xs">
+                        <button id="btn-download-all" class="w-full bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 font-medium py-2 px-4 rounded-sm transition-colors flex items-center justify-center gap-2 text-xs border border-blue-800/50">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                             <span id="btn-download-all-text" data-i18n="btnDownloadAll">Download All</span>
                         </button>
                     </div>
                  </div>
                 
-                <p id="status-msg" class="text-center text-xs text-gray-500 h-4 truncate mt-auto pt-4 border-t border-gray-800"></p>
+                <p id="status-msg" class="text-center text-[10px] text-gray-500 h-4 truncate mt-auto pt-4 border-t border-gray-800"></p>
             </div>
         </aside>
 
         <!-- Right Content -->
-        <section class="flex-1 bg-[#121212] flex flex-col relative overflow-hidden">
+        <section class="flex-1 bg-[#050b18] flex flex-col relative overflow-hidden">
             <!-- Loader -->
-            <div id="loader" class="hidden absolute inset-0 z-50 bg-[#121212]/90 flex flex-col items-center justify-center backdrop-blur-sm">
+            <div id="loader" class="hidden absolute inset-0 z-50 bg-[#050b18]/90 flex flex-col items-center justify-center backdrop-blur-sm">
                 <div class="relative w-24 h-24 mb-4">
-                    <div class="absolute inset-0 border-4 border-blue-500/20 rounded-full animate-ping"></div>
-                    <div class="absolute inset-0 border-4 border-t-orange-500 border-r-red-400 border-b-yellow-500 border-l-transparent rounded-full animate-spin"></div>
+                    <div class="absolute inset-0 border-4 border-blue-900/20 rounded-full animate-ping"></div>
+                    <div class="absolute inset-0 border-4 border-t-yellow-700 border-r-blue-800 border-b-yellow-900 border-l-transparent rounded-full animate-spin"></div>
                 </div>
                 <h3 class="text-xl font-bold text-white tracking-widest animate-pulse" id="loader-title">PROCESSING...</h3>
             </div>
@@ -147,6 +177,8 @@
             <div id="results-container" class="flex-1 overflow-y-auto p-6 custom-scrollbar">
                 <!-- 4. METADATA WRITER TAB -->
                 <div id="metadata-results" class="pb-20 space-y-6"></div>
+                <!-- 5. REMOVE LOGO TAB -->
+                <div id="remove-logo-results" class="hidden pb-20 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
             </div>
         </section>
     </main>
@@ -155,7 +187,7 @@
     <div id="image-modal" class="fixed inset-0 z-[100] bg-black/95 hidden flex flex-col overflow-hidden">
         <!-- Toolbar -->
         <div class="absolute top-4 right-4 z-[110] flex gap-2">
-            <span class="bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm self-center">Scroll to Zoom • Drag to Pan • ESC to Close</span>
+            <span class="bg-black/50 text-white text-xs px-2 py-1 rounded-sm backdrop-blur-sm self-center">SCROLL TO ZOOM • DRAG TO PAN • ESC TO CLOSE</span>
             <button id="btn-close-modal" class="text-white hover:text-red-400 transition-colors p-2 bg-black/20 rounded-full">
                 <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>

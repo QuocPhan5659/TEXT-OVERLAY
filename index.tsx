@@ -1,5 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
+// --- Shim for process.env to support runtime API_KEY injection ---
+function getRuntimeApiKey(): string {
+    // Priority: 
+    // 1. window.process.env.API_KEY (Runtime injected)
+    // 2. window.API_KEY (Alternative runtime)
+    // 3. process.env.GEMINI_API_KEY (Build-time fallback)
+    return (window as any).process?.env?.API_KEY || 
+           (window as any).API_KEY || 
+           (process.env as any).GEMINI_API_KEY || 
+           "";
+}
+
 // --- Types ---
 type Lang = 'en' | 'vi';
 
@@ -12,6 +24,7 @@ interface MetadataSlot {
 
 // --- Global State ---
 let currentLang: Lang = 'en';
+let activeTab: 'text-overlay' | 'remove-logo' = 'text-overlay';
 let authorSignature: string = '';
 let currentFont: string = 'Inter'; 
 let currentFiles: File[] = [];
@@ -25,6 +38,22 @@ let metadataSlots: MetadataSlot[] = [
     { id: 5, file: null, text: '', outputUrl: null }
 ];
 
+interface RemoveLogoSlot {
+    id: number;
+    file: File | null;
+    outputUrl: string | null;
+    originalWidth?: number;
+    originalHeight?: number;
+}
+
+let removeLogoSlots: RemoveLogoSlot[] = [
+    { id: 1, file: null, outputUrl: null },
+    { id: 2, file: null, outputUrl: null },
+    { id: 3, file: null, outputUrl: null },
+    { id: 4, file: null, outputUrl: null },
+    { id: 5, file: null, outputUrl: null }
+];
+
 // Modal State
 let modalScale = 1;
 let modalTranslate = { x: 0, y: 0 };
@@ -35,42 +64,54 @@ let currentTranslateStart = { x: 0, y: 0 };
 // --- Translations ---
 const translations = {
     en: {
-        appTitle: "Text Overlay",
-        appSubtitle: "Embed text and metadata into images",
-        lblUpload: "Source Images",
-        lblDrag: "Drag & Drop for Auto-Fill",
-        lblFontStyle: "Global Font Style",
-        lblAuthor: "Global Author Signature",
-        lblLogo: "Global Logo (Center)",
-        btnAddSlot: "Add New Slot",
-        btnClearMetadata: "Reset",
-        btnDownloadAll: "Download All",
-        slotUpload: "Upload Image(s)",
-        slotTextOverlay: "Text Overlay",
-        slotPlaceholder: "Enter text to overlay on image...",
-        btnTranslate: "Translate",
-        btnEmbed: "Embed Text",
-        btnSave: "Save PNG",
-        outputLabel: "OUTPUT"
+        appTitle: "IMGEN PRO",
+        appSubtitle: "ADVANCED IMAGE PROCESSING",
+        tabTextOverlay: "TEXT OVERLAY",
+        tabRemoveLogo: "REMOVE LOGO",
+        lblUpload: "SOURCE IMAGES",
+        lblDrag: "DRAG & DROP FOR AUTO-FILL",
+        lblFontStyle: "GLOBAL FONT STYLE",
+        lblAuthor: "GLOBAL AUTHOR SIGNATURE",
+        lblLogo: "GLOBAL LOGO (CENTER)",
+        btnAddSlot: "ADD NEW SLOT",
+        btnClearMetadata: "RESET",
+        btnDownloadAll: "DOWNLOAD ALL",
+        btnRunAll: "RUN REMOVE ALL",
+        btnEmbedAll: "EMBED TEXT ALL",
+        slotUpload: "UPLOAD IMAGE(S)",
+        slotTextOverlay: "TEXT OVERLAY",
+        slotPlaceholder: "ENTER TEXT TO OVERLAY ON IMAGE...",
+        btnTranslate: "TRANSLATE",
+        btnEmbed: "EMBED TEXT",
+        btnSave: "SAVE PNG",
+        outputLabel: "OUTPUT",
+        removeLogoDesc: "ONLY WORKS WITH IMAGES UP TO 2K RESOLUTION. AUTOMATICALLY DETECT AND REMOVE GEMINI LOGOS OR WATERMARKS FROM YOUR IMAGES USING AI.",
+        btnRunRemoveLogo: "RUN REMOVE LOGO"
     },
     vi: {
-        appTitle: "Chèn Chữ Vào Ảnh",
-        appSubtitle: "Nhúng văn bản và metadata vào hình ảnh",
-        lblUpload: "Ảnh Gốc",
-        lblDrag: "Kéo & Thả để tự động điền",
-        lblFontStyle: "Kiểu Font Chung",
-        lblAuthor: "Chữ Ký Tác Giả (Chung)",
-        lblLogo: "Logo Chữ Ký (Giữa ảnh)",
-        btnAddSlot: "Thêm Slot Mới",
-        btnClearMetadata: "Đặt Lại",
-        btnDownloadAll: "Tải Tất Cả",
-        slotUpload: "Tải Ảnh Lên",
-        slotTextOverlay: "Văn Bản Chèn",
-        slotPlaceholder: "Nhập văn bản cần chèn lên ảnh...",
-        btnTranslate: "Dịch",
-        btnEmbed: "Chèn Văn Bản",
-        btnSave: "Lưu Ảnh PNG",
-        outputLabel: "KẾT QUẢ"
+        appTitle: "IMGEN PRO",
+        appSubtitle: "XỬ LÝ HÌNH ẢNH NÂNG CAO",
+        tabTextOverlay: "CHÈN CHỮ",
+        tabRemoveLogo: "XÓA LOGO",
+        lblUpload: "ẢNH GỐC",
+        lblDrag: "KÉO & THẢ ĐỂ TỰ ĐỘNG ĐIỀN",
+        lblFontStyle: "KIỂU FONT CHUNG",
+        lblAuthor: "CHỮ KÝ TÁC GIẢ (CHUNG)",
+        lblLogo: "LOGO CHỮ KÝ (GIỮA ẢNH)",
+        btnAddSlot: "THÊM SLOT MỚI",
+        btnClearMetadata: "ĐẶT LẠI",
+        btnDownloadAll: "TẢI TẤT CẢ",
+        btnRunAll: "CHẠY XÓA TẤT CẢ",
+        btnEmbedAll: "CHÈN CHỮ TẤT CẢ",
+        slotUpload: "TẢI ẢNH LÊN",
+        slotTextOverlay: "VĂN BẢN CHÈN",
+        slotPlaceholder: "NHẬP VĂN BẢN CẦN CHÈN LÊN ẢNH...",
+        btnTranslate: "DỊCH",
+        btnEmbed: "CHÈN VĂN BẢN",
+        btnSave: "LƯU ẢNH PNG",
+        outputLabel: "KẾT QUẢ",
+        removeLogoDesc: "CHỈ HOẠT ĐỘNG VỚI ẢNH TỪ 2K TRỞ XUỐNG. TỰ ĐỘNG PHÁT HIỆN VÀ XÓA LOGO GEMINI HOẶC WATERMARK KHỎI ẢNH CỦA BẠN BẰNG AI.",
+        btnRunRemoveLogo: "CHẠY XÓA LOGO"
     }
 };
 
@@ -90,11 +131,21 @@ const dropZone = getEl<HTMLDivElement>('drop-zone');
 const previewContainer = getEl<HTMLDivElement>('preview-container');
 const emptyState = getEl<HTMLDivElement>('empty-state');
 
-// Panel
+// Tabs
+const tabTextOverlay = getEl<HTMLButtonElement>('tab-text-overlay');
+const tabRemoveLogo = getEl<HTMLButtonElement>('tab-remove-logo');
+
+// Panels
 const panelMetadata = getEl<HTMLDivElement>('panel-metadata');
+const panelRemoveLogo = getEl<HTMLDivElement>('panel-remove-logo');
 
 // Results
 const metadataResults = getEl<HTMLDivElement>('metadata-results');
+const removeLogoResults = getEl<HTMLDivElement>('remove-logo-results');
+
+// Remove Logo Controls
+const removeStrength = getEl<HTMLInputElement>('remove-strength');
+const strengthVal = getEl<HTMLSpanElement>('strength-val');
 
 // Buttons (Metadata)
 const btnAddSlot = getEl<HTMLButtonElement>('btn-add-slot');
@@ -120,8 +171,11 @@ const btnCloseModal = getEl<HTMLButtonElement>('btn-close-modal');
 
 // --- Window Interface ---
 declare global {
-  interface AIStudio {
-    openSelectKey: () => Promise<void>;
+  interface Window {
+    aistudio?: {
+      openSelectKey: () => Promise<void>;
+      hasSelectedApiKey: () => Promise<boolean>;
+    };
   }
 }
 
@@ -147,15 +201,28 @@ function updateUI() {
     elements.forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (key && t[key as keyof typeof t]) {
-            // Preserve children for buttons with icons, or just set text
-            if (el.children.length > 0 && el.tagName === 'BUTTON') {
-                 // specific logic for buttons with icons if needed, 
-                 // currently only btnAddSlot and btnClearMetadata have specific span ids
-            } else {
-                 el.textContent = t[key as keyof typeof t];
-            }
+            el.textContent = t[key as keyof typeof t];
         }
     });
+
+    // Update Tab Visuals
+    if (tabTextOverlay && tabRemoveLogo) {
+        if (activeTab === 'text-overlay') {
+            tabTextOverlay.className = "px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer bg-blue-900/40 text-blue-400 border border-blue-800/50";
+            tabRemoveLogo.className = "px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-gray-800";
+            panelMetadata?.classList.remove('hidden');
+            panelRemoveLogo?.classList.add('hidden');
+            metadataResults?.classList.remove('hidden');
+            removeLogoResults?.classList.add('hidden');
+        } else {
+            tabTextOverlay.className = "px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer text-gray-400 hover:text-white hover:bg-gray-800";
+            tabRemoveLogo.className = "px-4 py-2 rounded-sm text-sm font-bold transition-all cursor-pointer bg-yellow-900/40 text-yellow-500 border border-yellow-800/50";
+            panelMetadata?.classList.add('hidden');
+            panelRemoveLogo?.classList.remove('hidden');
+            metadataResults?.classList.add('hidden');
+            removeLogoResults?.classList.remove('hidden');
+        }
+    }
 
     // Update Button Spans specifically
     const btnAddText = getEl('btn-add-slot-text');
@@ -182,8 +249,46 @@ function updateUI() {
         }
     }
 
-    // Re-render slots to update dynamic text
+    // Update Drop Zone based on Tab
+    if (dropZone) {
+        const lblDrag = getEl('lbl-drag');
+        const lblUpload = getEl('lbl-upload');
+        const emptyStateIcon = dropZone.querySelector('#empty-state svg');
+        
+        if (lblUpload) {
+            lblUpload.textContent = activeTab === 'text-overlay' ? t.btnEmbedAll : t.lblUpload;
+        }
+
+        if (lblDrag) {
+            if (activeTab === 'text-overlay') {
+                lblDrag.textContent = t.btnEmbedAll;
+                lblDrag.setAttribute('data-i18n', 'btnEmbedAll');
+                dropZone.className = "min-h-[120px] flex flex-col justify-center border-2 border-dashed border-blue-800/50 rounded-sm p-4 text-center hover:border-blue-700 hover:bg-blue-900/10 transition-all cursor-pointer group relative bg-blue-900/5";
+                if (emptyStateIcon) {
+                    emptyStateIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />';
+                    emptyStateIcon.parentElement!.className = "w-12 h-12 bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-900/40 transition-colors shadow-lg border border-blue-800/30";
+                    emptyStateIcon.classList.remove('text-yellow-600');
+                    emptyStateIcon.classList.add('text-blue-600');
+                }
+                lblDrag.className = "text-xs font-bold text-blue-700 group-hover:text-blue-600 transition-colors uppercase tracking-widest";
+            } else {
+                lblDrag.textContent = t.btnRunAll;
+                lblDrag.setAttribute('data-i18n', 'btnRunAll');
+                dropZone.className = "min-h-[120px] flex flex-col justify-center border-2 border-dashed border-yellow-800/50 rounded-sm p-4 text-center hover:border-yellow-700 hover:bg-yellow-900/10 transition-all cursor-pointer group relative bg-yellow-900/5";
+                if (emptyStateIcon) {
+                    emptyStateIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />';
+                    emptyStateIcon.parentElement!.className = "w-12 h-12 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-yellow-900/40 transition-colors shadow-lg border border-yellow-800/30";
+                    emptyStateIcon.classList.remove('text-blue-600');
+                    emptyStateIcon.classList.add('text-yellow-600');
+                }
+                lblDrag.className = "text-xs font-bold text-yellow-700 group-hover:text-yellow-600 transition-colors uppercase tracking-widest";
+            }
+        }
+    }
+
+    // Re-render slots
     renderMetadataSlots();
+    renderRemoveLogoSlots();
 }
 
 function closeModal() {
@@ -222,12 +327,7 @@ function updateModalTransform() {
 }
 
 async function getApiKey(): Promise<string | undefined> {
-    const key = process.env.API_KEY;
-    if (!key && window.aistudio?.openSelectKey) {
-        await window.aistudio.openSelectKey();
-        return process.env.API_KEY;
-    }
-    return key;
+    return getRuntimeApiKey();
 }
 
 // --- PNG Logic ---
@@ -317,7 +417,7 @@ async function extractMetadataString(file: File): Promise<string> {
 // --- Gemini Call (Kept for Translation feature) ---
 async function callGemini(prompt: string, files: File[], asJson: boolean = true): Promise<string> {
     const key = await getApiKey();
-    if (!key) { showStatus("API Key required", true); return ""; }
+    if (!key) { showStatus("API KEY REQUIRED", true); return ""; }
 
     const ai = new GoogleGenAI({ apiKey: key });
     const parts: any[] = [];
@@ -341,9 +441,9 @@ async function callGemini(prompt: string, files: File[], asJson: boolean = true)
              config: asJson ? { responseMimeType: "application/json" } : {}
         });
         return response.text || (asJson ? "{}" : "");
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        showStatus("Gemini API Error", true);
+        showStatus("GEMINI API ERROR", true);
         return asJson ? "{}" : "";
     }
 }
@@ -352,7 +452,7 @@ async function callGemini(prompt: string, files: File[], asJson: boolean = true)
 function handleCommonFiles(files: File[]) {
     // Enforce 5 image limit
     if (files.length > 5) {
-        showStatus("Limit 5 images max. Truncating...", true);
+        showStatus("LIMIT 5 IMAGES MAX. TRUNCATING...", true);
         files = files.slice(0, 5);
     }
     
@@ -362,7 +462,7 @@ function handleCommonFiles(files: File[]) {
         files.forEach(f => {
             const img = document.createElement('img');
             img.src = URL.createObjectURL(f);
-            img.className = "h-32 w-auto rounded shadow-sm snap-center border border-gray-700";
+            img.className = "h-32 w-auto rounded-sm shadow-sm snap-center border border-gray-700";
             previewContainer.appendChild(img);
         });
         previewContainer.classList.remove('hidden');
@@ -371,23 +471,99 @@ function handleCommonFiles(files: File[]) {
     
     // Auto populate slots if they are empty
     if (files.length > 0) {
-        // Find empty slots
-        const emptySlots = metadataSlots.filter(slot => !slot.file);
-        
-        files.forEach(async (file, idx) => {
-            if (idx < emptySlots.length) {
-                const slot = emptySlots[idx];
-                slot.file = file;
-                const meta = await extractMetadataString(file);
-                try {
-                    const parsed = JSON.parse(meta);
-                    slot.text = JSON.stringify(parsed, null, 2);
-                } catch {
-                    slot.text = meta;
+        if (activeTab === 'text-overlay') {
+            const emptySlots = metadataSlots.filter(slot => !slot.file);
+            files.forEach(async (file, idx) => {
+                if (idx < emptySlots.length) {
+                    const slot = emptySlots[idx];
+                    slot.file = file;
+                    const meta = await extractMetadataString(file);
+                    try {
+                        const parsed = JSON.parse(meta);
+                        slot.text = JSON.stringify(parsed, null, 2);
+                    } catch {
+                        slot.text = meta;
+                    }
                 }
+            });
+            renderMetadataSlots();
+        } else {
+            const emptySlots = removeLogoSlots.filter(slot => !slot.file);
+            files.forEach((file, idx) => {
+                if (idx < emptySlots.length) {
+                    const slot = emptySlots[idx];
+                    slot.file = file;
+                } else {
+                    const newId = (Math.max(...removeLogoSlots.map(s => s.id)) || 0) + 1;
+                    removeLogoSlots.push({ id: newId, file: file, outputUrl: null });
+                }
+            });
+            renderRemoveLogoSlots();
+        }
+    }
+}
+
+async function runEmbed(slot: MetadataSlot) {
+    if (!slot.file || !slot.text) return;
+    
+    // Auto Delete Old Result Logic
+    if (slot.outputUrl) {
+        URL.revokeObjectURL(slot.outputUrl);
+        slot.outputUrl = null;
+    }
+
+    return new Promise<void>((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(slot.file!);
+        img.onload = () => {
+            const canvas = document.createElement('canvas'); 
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                // Draw Text with current Font and Logo
+                drawTextOnCanvas(ctx, slot.text, authorSignature, canvas.width, canvas.height, currentFont);
+                
+                canvas.toBlob(async (blob) => {
+                    if(blob) {
+                        const buffer = await blob.arrayBuffer();
+                        // Determine key based on content
+                        let key = "parameters";
+                        try { JSON.parse(slot.text); key = "BananaProData"; } catch {}
+                        
+                        const finalPng = writePngMetadata(new Uint8Array(buffer), key, slot.text);
+                        const finalBlob = new Blob([finalPng], { type: 'image/png' });
+                        
+                        slot.outputUrl = URL.createObjectURL(finalBlob);
+                        renderMetadataSlots();
+                        resolve();
+                    }
+                }, 'image/png');
             }
-        });
-        renderMetadataSlots();
+        };
+    });
+}
+
+async function runEmbedAll() {
+    const slotsToProcess = metadataSlots.filter(s => s.file && s.text);
+    if (slotsToProcess.length === 0) {
+        showStatus("NO IMAGES/TEXT TO PROCESS.", true);
+        return;
+    }
+    
+    setLoading(true);
+    showStatus(`EMBEDDING TEXT FOR ${slotsToProcess.length} IMAGES...`);
+    
+    try {
+        for (const slot of slotsToProcess) {
+            await runEmbed(slot);
+        }
+        showStatus("ALL TEXT EMBEDDED!");
+    } catch (e) {
+        console.error(e);
+        showStatus("ERROR DURING BATCH EMBEDDING", true);
+    } finally {
+        setLoading(false);
     }
 }
 
@@ -542,11 +718,11 @@ function renderMetadataSlots() {
 
     metadataSlots.forEach((slot, index) => {
         const row = document.createElement('div');
-        row.className = "grid grid-cols-1 lg:grid-cols-3 gap-4 bg-[#18181a] border border-gray-800 rounded-xl p-4 relative group";
+        row.className = "grid grid-cols-1 lg:grid-cols-[180px_1fr_180px] gap-3 bg-[#18181a] border border-gray-800 rounded-sm p-3 relative group";
         
         // Remove Button
         const btnRemove = document.createElement('button');
-        btnRemove.className = "absolute top-2 right-2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all z-10 opacity-0 group-hover:opacity-100";
+        btnRemove.className = "absolute top-2 right-2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-sm transition-all z-10 opacity-0 group-hover:opacity-100";
         btnRemove.innerHTML = iconRemove;
         btnRemove.onclick = () => {
             metadataSlots = metadataSlots.filter(s => s.id !== slot.id);
@@ -558,7 +734,7 @@ function renderMetadataSlots() {
         uploadCol.className = "flex flex-col gap-2 relative";
         
         const previewBox = document.createElement('div');
-        previewBox.className = "relative aspect-square w-full rounded-lg border-2 border-dashed border-gray-700 hover:border-orange-500/50 transition-colors flex flex-col items-center justify-center bg-black cursor-pointer overflow-hidden";
+        previewBox.className = "relative aspect-square w-full rounded-sm border-2 border-dashed border-gray-700 hover:border-orange-500/50 transition-colors flex flex-col items-center justify-center bg-black cursor-pointer overflow-hidden";
         
         const handleFilesForSlot = async (files: File[]) => {
             const validFiles = files.filter(f => f.type.startsWith('image/'));
@@ -594,7 +770,7 @@ function renderMetadataSlots() {
                 fileIndex++;
             }
             renderMetadataSlots();
-            showStatus(`Loaded ${validFiles.length} images.`);
+            showStatus(`LOADED ${validFiles.length} IMAGES.`);
         };
 
         previewBox.ondragover = (e) => { e.preventDefault(); previewBox.classList.add('border-orange-500'); };
@@ -617,12 +793,12 @@ function renderMetadataSlots() {
             
             // Clear Image Button
             const btnTrash = document.createElement('button');
-            btnTrash.className = "absolute top-2 right-2 p-1 bg-black/50 text-red-400 rounded hover:bg-black/70";
+            btnTrash.className = "absolute top-2 right-2 p-1 bg-black/50 text-red-400 rounded-sm hover:bg-black/70";
             btnTrash.innerHTML = iconTrash;
             btnTrash.onclick = (e) => { e.stopPropagation(); slot.file = null; slot.outputUrl = null; renderMetadataSlots(); };
             uploadCol.appendChild(btnTrash);
         } else {
-            previewBox.innerHTML = `<span class="text-xs text-gray-500 font-bold uppercase">${t.slotUpload}</span>`;
+            previewBox.innerHTML = `<span class="text-[10px] text-gray-500 font-bold uppercase">${t.slotUpload}</span>`;
         }
         previewBox.onclick = () => input.click();
         uploadCol.appendChild(previewBox);
@@ -634,16 +810,16 @@ function renderMetadataSlots() {
         
         const label = document.createElement('div');
         label.className = "flex justify-between items-center";
-        label.innerHTML = `<span class="text-xs font-bold text-orange-400 uppercase">${t.slotTextOverlay}</span>`;
+        label.innerHTML = `<span class="text-[10px] font-bold text-orange-400 uppercase">${t.slotTextOverlay}</span>`;
         
         const textarea = document.createElement('textarea');
-        textarea.className = "flex-1 bg-gray-900 border border-gray-700 rounded-lg p-3 text-sm font-mono text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none resize-none min-h-[250px] mb-10";
+        textarea.className = "flex-1 bg-gray-900 border border-gray-700 rounded-sm p-2 text-[11px] font-mono text-gray-300 focus:ring-1 focus:ring-orange-500 outline-none resize-none min-h-[120px] mb-8";
         textarea.value = slot.text;
         textarea.placeholder = t.slotPlaceholder;
         textarea.oninput = (e) => { slot.text = (e.target as HTMLTextAreaElement).value; };
 
         const btnTranslate = document.createElement('button');
-        btnTranslate.className = "absolute top-0 right-0 text-xs text-blue-400 hover:text-white border border-blue-500/50 rounded px-2 py-0.5";
+        btnTranslate.className = "absolute top-0 right-0 text-xs text-blue-400 hover:text-white border border-blue-500/50 rounded-sm px-2 py-0.5";
         btnTranslate.innerText = t.btnTranslate;
         btnTranslate.onclick = async () => {
             if(!slot.text) return;
@@ -656,48 +832,11 @@ function renderMetadataSlots() {
         };
 
         const btnEmbed = document.createElement('button');
-        btnEmbed.className = "absolute bottom-0 right-0 bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 px-4 rounded-lg text-xs shadow-lg";
+        btnEmbed.className = "absolute bottom-0 right-0 bg-orange-600 hover:bg-orange-500 text-white font-bold py-1.5 px-3 rounded-sm text-[10px] shadow-lg";
         btnEmbed.innerText = t.btnEmbed;
         btnEmbed.onclick = () => {
-            if (!slot.file || !slot.text) { showStatus("Missing file or text", true); return; }
-            
-            // Auto Delete Old Result Logic
-            if (slot.outputUrl) {
-                URL.revokeObjectURL(slot.outputUrl);
-                slot.outputUrl = null;
-                // Optional: Update render immediately to show it's "processing" or cleared, 
-                // but since we are about to generate a new one, we can just wait.
-                // However, renderMetadataSlots() at the end will refresh the view.
-            }
-
-            const img = new Image();
-            img.src = URL.createObjectURL(slot.file);
-            img.onload = () => {
-                const canvas = document.createElement('canvas'); 
-                canvas.width = img.width; canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0);
-                    // Draw Text with current Font and Logo
-                    drawTextOnCanvas(ctx, slot.text, authorSignature, canvas.width, canvas.height, currentFont);
-                    
-                    canvas.toBlob(async (blob) => {
-                        if(blob) {
-                            const buffer = await blob.arrayBuffer();
-                            // Determine key based on content
-                            let key = "parameters";
-                            try { JSON.parse(slot.text); key = "BananaProData"; } catch {}
-                            
-                            const finalPng = writePngMetadata(new Uint8Array(buffer), key, slot.text);
-                            const finalBlob = new Blob([finalPng], { type: 'image/png' });
-                            
-                            slot.outputUrl = URL.createObjectURL(finalBlob);
-                            renderMetadataSlots();
-                            showStatus("Text embedded!");
-                        }
-                    }, 'image/png');
-                }
-            };
+            if (!slot.file || !slot.text) { showStatus("MISSING FILE OR TEXT", true); return; }
+            runEmbed(slot).then(() => showStatus("TEXT EMBEDDED!"));
         };
 
         textCol.appendChild(label);
@@ -709,7 +848,7 @@ function renderMetadataSlots() {
         const outputCol = document.createElement('div');
         outputCol.className = "flex flex-col gap-2";
         const outputBox = document.createElement('div');
-        outputBox.className = "relative aspect-square w-full rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center bg-black overflow-hidden";
+        outputBox.className = "relative aspect-square w-full rounded-sm border-2 border-dashed border-gray-800 flex flex-col items-center justify-center bg-black overflow-hidden";
         
         if (slot.outputUrl) {
             const img = document.createElement('img');
@@ -720,15 +859,19 @@ function renderMetadataSlots() {
             outputBox.classList.remove('border-dashed');
 
             const btnSave = document.createElement('button');
-            btnSave.className = "w-full bg-green-700 hover:bg-green-600 text-white font-bold py-2 rounded-lg text-xs mt-2";
+            btnSave.className = "w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1.5 rounded-sm text-[10px] mt-2";
             btnSave.innerText = t.btnSave;
             btnSave.onclick = () => {
-                const a = document.createElement('a'); a.href = slot.outputUrl!; a.download = "embedded.png"; a.click();
+                const a = document.createElement('a'); 
+                a.href = slot.outputUrl!; 
+                const originalName = slot.file ? slot.file.name.split('.')[0] : `image_${slot.id}`;
+                a.download = `Overlay_${originalName}.png`; 
+                a.click();
             };
             outputCol.appendChild(outputBox);
             outputCol.appendChild(btnSave);
         } else {
-            outputBox.innerHTML = `<span class="text-xs text-red-500 font-bold">${t.outputLabel}</span>`;
+            outputBox.innerHTML = `<span class="text-[10px] text-red-500 font-bold">${t.outputLabel}</span>`;
             outputCol.appendChild(outputBox);
         }
 
@@ -737,6 +880,252 @@ function renderMetadataSlots() {
         row.appendChild(textCol);
         row.appendChild(outputCol);
         metadataResults.appendChild(row);
+    });
+}
+
+async function runRemoveLogoAll() {
+    const slotsToProcess = removeLogoSlots.filter(s => s.file);
+    if (slotsToProcess.length === 0) {
+        showStatus("NO IMAGES TO PROCESS.", true);
+        return;
+    }
+    
+    setLoading(true);
+    showStatus(`PROCESSING ${slotsToProcess.length} IMAGES...`);
+    
+    try {
+        for (const slot of slotsToProcess) {
+            await runRemoveLogo(slot, true); // Pass true to skip internal loading state
+        }
+        showStatus("ALL LOGOS REMOVED!");
+    } catch (e) {
+        console.error(e);
+        showStatus("ERROR DURING BATCH PROCESSING", true);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// --- Remove Logo Logic ---
+async function runRemoveLogo(slot: RemoveLogoSlot, skipLoading: boolean = false) {
+    if (!slot.file) return;
+    if (!skipLoading) setLoading(true);
+    if (!skipLoading) showStatus("REMOVING LOGO...");
+
+    const key = await getApiKey();
+    if (!key) { setLoading(false); return; }
+
+    const ai = new GoogleGenAI({ apiKey: key });
+    
+    try {
+        // Get original dimensions using naturalWidth/Height
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(slot.file);
+        img.src = objectUrl;
+        await new Promise((resolve, reject) => { 
+            img.onload = resolve; 
+            img.onerror = reject;
+        });
+        slot.originalWidth = img.naturalWidth;
+        slot.originalHeight = img.naturalHeight;
+        URL.revokeObjectURL(objectUrl);
+
+        const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.readAsDataURL(slot.file!);
+        });
+
+        const prompt = `CRITICAL TASK: REMOVE WATERMARK. 
+        Identify and completely remove the Gemini logo (the four-pointed sparkle/star icon) and any "Gemini" text or other watermarks from this image. 
+        You MUST reconstruct the background behind the logo perfectly using surrounding textures, colors, and patterns. 
+        The removal must be SEAMLESS and INVISIBLE. 
+        DO NOT leave any blurry patches, artifacts, or ghosting where the logo was. 
+        Return ONLY the processed image.
+        MAINTAIN THE ORIGINAL HIGH RESOLUTION AND PIXEL COUNT (${slot.originalWidth}x${slot.originalHeight}). DO NOT COMPRESS OR DOWNSCALE.`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: slot.file.type, data: base64 } },
+                    { text: prompt }
+                ]
+            }
+        });
+
+        if (!response.candidates || response.candidates.length === 0) {
+            throw new Error("NO CANDIDATES RETURNED");
+        }
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+                const base64Data = part.inlineData.data;
+                
+                // Resize back to original resolution to ensure no loss in pixel count
+                const resultImg = new Image();
+                resultImg.src = `data:image/png;base64,${base64Data}`;
+                await new Promise((resolve, reject) => { 
+                    resultImg.onload = resolve; 
+                    resultImg.onerror = reject;
+                });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = slot.originalWidth || resultImg.naturalWidth;
+                canvas.height = slot.originalHeight || resultImg.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(resultImg, 0, 0, canvas.width, canvas.height);
+                    
+                    if (slot.outputUrl) URL.revokeObjectURL(slot.outputUrl);
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            slot.outputUrl = URL.createObjectURL(blob);
+                            renderRemoveLogoSlots();
+                            showStatus("LOGO REMOVED!");
+                        }
+                    }, 'image/png');
+                }
+                break;
+            }
+        }
+    } catch (e: any) {
+        console.error(e);
+        if (e.message?.includes("403") || e.message?.includes("permission")) {
+            showStatus("PERMISSION DENIED. PLEASE SELECT A PAID API KEY.", true);
+            // Optionally trigger the key selection dialog automatically
+            if (window.aistudio?.openSelectKey) {
+                setTimeout(() => window.aistudio.openSelectKey(), 2000);
+            }
+        } else {
+            showStatus("ERROR REMOVING LOGO", true);
+        }
+    } finally {
+        if (!skipLoading) setLoading(false);
+    }
+}
+
+function renderRemoveLogoSlots() {
+    if (!removeLogoResults) return;
+    removeLogoResults.innerHTML = '';
+    
+    const t = translations[currentLang];
+
+    removeLogoSlots.forEach((slot, index) => {
+        const row = document.createElement('div');
+        row.className = "grid grid-cols-2 gap-2 bg-[#0a1224] border border-gray-800 rounded-sm p-3 relative group";
+        
+        // Remove Button
+        const btnRemove = document.createElement('button');
+        btnRemove.className = "absolute top-2 right-2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-sm transition-all z-10 opacity-0 group-hover:opacity-100";
+        btnRemove.innerHTML = iconRemove;
+        btnRemove.onclick = () => {
+            removeLogoSlots = removeLogoSlots.filter(s => s.id !== slot.id);
+            renderRemoveLogoSlots();
+        };
+
+        // 1. Upload Area
+        const uploadCol = document.createElement('div');
+        uploadCol.className = "flex flex-col gap-2 relative";
+        
+        const previewBox = document.createElement('div');
+        previewBox.className = "relative aspect-square w-full rounded-sm border-2 border-dashed border-gray-800 hover:border-blue-900/50 transition-colors flex flex-col items-center justify-center bg-black cursor-pointer overflow-hidden";
+        
+        const handleFilesForSlot = (files: File[]) => {
+            const validFiles = files.filter(f => f.type.startsWith('image/'));
+            if (validFiles.length === 0) return;
+            
+            let fileIndex = 0;
+            slot.file = validFiles[fileIndex];
+            fileIndex++;
+            
+            while(fileIndex < validFiles.length) {
+                const nextFile = validFiles[fileIndex];
+                if (index + fileIndex < removeLogoSlots.length) {
+                     removeLogoSlots[index + fileIndex].file = nextFile;
+                } else {
+                     const newId = (Math.max(...removeLogoSlots.map(s => s.id)) || 0) + 1;
+                     removeLogoSlots.push({ id: newId, file: nextFile, outputUrl: null });
+                }
+                fileIndex++;
+            }
+            renderRemoveLogoSlots();
+        };
+
+        previewBox.ondragover = (e) => { e.preventDefault(); previewBox.classList.add('border-blue-900'); };
+        previewBox.ondragleave = (e) => { e.preventDefault(); previewBox.classList.remove('border-blue-900'); };
+        previewBox.ondrop = (e) => {
+            e.preventDefault(); previewBox.classList.remove('border-blue-900');
+            if (e.dataTransfer?.files) handleFilesForSlot(Array.from(e.dataTransfer.files));
+        };
+
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.className = 'hidden';
+        input.onchange = (e) => { if ((e.target as HTMLInputElement).files) handleFilesForSlot(Array.from((e.target as HTMLInputElement).files!)); };
+        
+        if (slot.file) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(slot.file);
+            img.className = "w-full h-full object-contain";
+            previewBox.appendChild(img);
+            previewBox.classList.remove('border-dashed');
+            
+            const btnTrash = document.createElement('button');
+            btnTrash.className = "absolute top-2 right-2 p-1 bg-black/50 text-red-400 rounded-sm hover:bg-black/70";
+            btnTrash.innerHTML = iconTrash;
+            btnTrash.onclick = (e) => { e.stopPropagation(); slot.file = null; slot.outputUrl = null; renderRemoveLogoSlots(); };
+            uploadCol.appendChild(btnTrash);
+
+            const btnRun = document.createElement('button');
+            btnRun.className = "w-full bg-yellow-800 hover:bg-yellow-700 text-white font-bold py-2 rounded-sm text-[10px] mt-2 transition-all shadow-lg hover:shadow-yellow-900/20 active:scale-95 flex items-center justify-center gap-2";
+            btnRun.innerText = t.btnRunRemoveLogo;
+            btnRun.onclick = () => runRemoveLogo(slot);
+            uploadCol.appendChild(btnRun);
+        } else {
+            previewBox.innerHTML = `<span class="text-[10px] text-gray-500 font-bold uppercase">${t.slotUpload}</span>`;
+        }
+        previewBox.onclick = () => input.click();
+        uploadCol.appendChild(previewBox);
+        uploadCol.appendChild(input);
+
+        // 2. Output
+        const outputCol = document.createElement('div');
+        outputCol.className = "flex flex-col gap-2";
+        const outputBox = document.createElement('div');
+        outputBox.className = "relative aspect-square w-full rounded-sm border-2 border-dashed border-gray-800 flex flex-col items-center justify-center bg-black overflow-hidden";
+        
+        if (slot.outputUrl) {
+            const img = document.createElement('img');
+            img.src = slot.outputUrl;
+            img.className = "w-full h-full object-contain cursor-pointer";
+            img.onclick = () => openModal(slot.outputUrl!);
+            outputBox.appendChild(img);
+            outputBox.classList.remove('border-dashed');
+
+            const btnSave = document.createElement('button');
+            btnSave.className = "w-full bg-green-700 hover:bg-green-600 text-white font-bold py-1.5 rounded-sm text-[10px] mt-2";
+            btnSave.innerText = t.btnSave;
+            btnSave.onclick = () => {
+                const a = document.createElement('a'); 
+                a.href = slot.outputUrl!; 
+                const originalName = slot.file ? slot.file.name.split('.')[0] : `image_${slot.id}`;
+                a.download = `No_Logo_${originalName}.png`; 
+                a.click();
+            };
+            outputCol.appendChild(outputBox);
+            outputCol.appendChild(btnSave);
+        } else {
+            outputBox.innerHTML = `<span class="text-[10px] text-blue-800 font-bold">${t.outputLabel}</span>`;
+            outputCol.appendChild(outputBox);
+        }
+
+        row.appendChild(btnRemove);
+        row.appendChild(uploadCol);
+        row.appendChild(outputCol);
+        removeLogoResults.appendChild(row);
     });
 }
 
@@ -770,11 +1159,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const content = re.target?.result as string;
                         authorInput.value = content;
                         authorSignature = content;
-                        showStatus('Author signature loaded from file.');
+                        showStatus('AUTHOR SIGNATURE LOADED FROM FILE.');
                     };
                     reader.readAsText(file);
                 } else {
-                    showStatus('Please drop a .txt file.', true);
+                    showStatus('PLEASE DROP A .TXT FILE.', true);
                 }
             }
         });
@@ -797,7 +1186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const content = re.target?.result as string;
                     authorInput.value = content;
                     authorSignature = content;
-                    showStatus('Author signature loaded from file.');
+                    showStatus('AUTHOR SIGNATURE LOADED FROM FILE.');
                 };
                 reader.readAsText(file);
                 // Reset input so same file can be selected again
@@ -821,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const img = new Image();
                 img.onload = () => {
                     logoImg = img;
-                    showStatus("Logo loaded successfully");
+                    showStatus("LOGO LOADED SUCCESSFULLY");
                 };
                 img.src = URL.createObjectURL(file);
             } else {
@@ -838,24 +1227,59 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Tab Listeners
+    tabTextOverlay?.addEventListener('click', () => { activeTab = 'text-overlay'; updateUI(); });
+    tabRemoveLogo?.addEventListener('click', () => { activeTab = 'remove-logo'; updateUI(); });
+
+    // Remove Logo Strength Slider
+    removeStrength?.addEventListener('input', (e) => {
+        const val = (e.target as HTMLInputElement).value;
+        if (strengthVal) strengthVal.textContent = `${val}%`;
+    });
+
     fontSelector?.addEventListener('change', (e) => { currentFont = (e.target as HTMLSelectElement).value; });
     
     btnAddSlot?.addEventListener('click', () => {
-        const newId = (Math.max(...metadataSlots.map(s => s.id)) || 0) + 1;
-        metadataSlots.push({ id: newId, file: null, text: '', outputUrl: null });
-        renderMetadataSlots();
+        if (activeTab === 'text-overlay') {
+            const newId = (Math.max(...metadataSlots.map(s => s.id)) || 0) + 1;
+            metadataSlots.push({ id: newId, file: null, text: '', outputUrl: null });
+            renderMetadataSlots();
+        } else {
+            const newId = (Math.max(...removeLogoSlots.map(s => s.id)) || 0) + 1;
+            removeLogoSlots.push({ id: newId, file: null, outputUrl: null });
+            renderRemoveLogoSlots();
+        }
     });
     
     btnClearMetadata?.addEventListener('click', () => {
-        metadataSlots = [{ id: 1, file: null, text: '', outputUrl: null }];
-        renderMetadataSlots();
+        if (activeTab === 'text-overlay') {
+            metadataSlots = [
+                { id: 1, file: null, text: '', outputUrl: null },
+                { id: 2, file: null, text: '', outputUrl: null },
+                { id: 3, file: null, text: '', outputUrl: null },
+                { id: 4, file: null, text: '', outputUrl: null },
+                { id: 5, file: null, text: '', outputUrl: null }
+            ];
+            renderMetadataSlots();
+        } else {
+            removeLogoSlots = [
+                { id: 1, file: null, outputUrl: null },
+                { id: 2, file: null, outputUrl: null },
+                { id: 3, file: null, outputUrl: null },
+                { id: 4, file: null, outputUrl: null },
+                { id: 5, file: null, outputUrl: null }
+            ];
+            renderRemoveLogoSlots();
+        }
+        showStatus("ALL SLOTS RESET");
     });
 
     // Download All Listener
     btnDownloadAll?.addEventListener('click', () => {
-        const validSlots = metadataSlots.filter(s => s.outputUrl);
+        const slots = activeTab === 'text-overlay' ? metadataSlots : removeLogoSlots;
+        const validSlots = slots.filter(s => s.outputUrl);
         if (validSlots.length === 0) {
-            showStatus("No embedded images to download.", true);
+            showStatus("NO PROCESSED IMAGES TO DOWNLOAD.", true);
             return;
         }
 
@@ -864,17 +1288,16 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 const a = document.createElement('a');
                 a.href = slot.outputUrl!;
-                // Create a filename from original file name if available, or just slot id
                 const originalName = slot.file ? slot.file.name.split('.')[0] : `image_${slot.id}`;
-                a.download = `${originalName}_embedded.png`;
+                const prefix = activeTab === 'text-overlay' ? 'Overlay_' : 'No_Logo_';
+                a.download = `${prefix}${originalName}.png`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
             }, delay);
-            // Stagger downloads to prevent browser blocking multiple popups/downloads
             delay += 300; 
         });
-        showStatus(`Starting download for ${validSlots.length} images...`);
+        showStatus(`STARTING DOWNLOAD FOR ${validSlots.length} IMAGES...`);
     });
 
     btnCloseModal?.addEventListener('click', closeModal);
@@ -920,12 +1343,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Common Drop Zone for Autofill
     if(dropZone && fileInput) {
-        dropZone.onclick = () => fileInput.click();
+        dropZone.onclick = () => {
+            if (activeTab === 'remove-logo') {
+                runRemoveLogoAll();
+            } else {
+                runEmbedAll();
+            }
+        };
         fileInput.onchange = (e) => { 
             if((e.target as HTMLInputElement).files) handleCommonFiles(Array.from((e.target as HTMLInputElement).files!)); 
         };
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-orange-500'); };
-        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('border-orange-500'); if(e.dataTransfer?.files) handleCommonFiles(Array.from(e.dataTransfer.files)); };
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-yellow-500'); };
+        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('border-yellow-500'); if(e.dataTransfer?.files) handleCommonFiles(Array.from(e.dataTransfer.files)); };
     }
 
     // Initialize

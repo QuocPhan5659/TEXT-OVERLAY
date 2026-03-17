@@ -8,15 +8,13 @@ const __dirname = path.dirname(__filename);
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-        base: '/TEXT-OVERLAY/',
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
       plugins: [],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || "")
       },
       resolve: {
         alias: {

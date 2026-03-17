@@ -2,9 +2,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Resolution, AspectRatio } from "../types";
 
 const getAiClient = () => {
-  const apiKey = process.env.API_KEY;
+  const apiKey = (window as any).process?.env?.API_KEY || 
+                 (window as any).API_KEY || 
+                 (process.env as any).GEMINI_API_KEY;
+                 
   if (!apiKey) {
-    throw new Error("API Key is missing. Please check your environment configuration.");
+    throw new Error("API Key is missing. Please check your environment variables.");
   }
   return new GoogleGenAI({ apiKey });
 };
